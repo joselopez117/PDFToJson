@@ -34,6 +34,29 @@ const initializePDFServices = () => {
   });
 };
 
+function extractTextFromJSON(pdfJson) {
+    const textElements = [];
+  
+    function extractText(element) {
+        // if (element.text) {
+        //     textElements.push(element.text);
+        // }
+        for (const key in element) {
+            if (Array.isArray(element[key]) && key === "elements") {
+                for (const item of element[key]) {
+                    if (typeof item === 'object' && item['Text']) {
+                        // extractText(item);
+                        textElements.push(item['Text']);
+                    }
+                }
+            }
+        }
+    }
+
+    extractText(pdfJson);
+    return textElements;
+}
+
 const processPDF = async () => {
   try {
     await initializePDFServices();
@@ -65,22 +88,30 @@ const processPDF = async () => {
     streamAsset.readStream.pipe(writeStream);
 
     writeStream.on('finish', () => {
-        console.log('Extraction complete');
-        const zip = new AdmZip(outputFilePath);
-        const extractDir = path.join(__dirname, 'output');
-        zip.extractAllTo(extractDir, true);
-        console.log(`Files extracted to ${extractDir}`);
-  
-        // Read the extracted JSON file
-        const jsondata = fs.readFileSync(path.join(extractDir, 'structuredData.json'), 'utf8');
-        const data = JSON.parse(jsondata);
-  
-        data.elements.forEach(element => {
-          if (element.Path.endsWith('/H1')) {
-            console.log(element.Text);
-          }
-        });
+      console.log('Extraction complete');
+      const zip = new AdmZip(outputFilePath);
+      const extractDir = path.join(__dirname, 'output');
+      zip.extractAllTo(extractDir, true);
+      console.log(`Files extracted to ${extractDir}`);
+
+      // Read the extracted JSON file
+      const jsondata = fs.readFileSync(path.join(extractDir, 'structuredData.json'), 'utf8');
+      const data = JSON.parse(jsondata);
+      
+      // Use the extractTextFromJSON function to filter and get text elements
+      const textElements = extractTextFromJSON(data);
+
+      // Write the text elements to a new JSON file
+      const outputJsonFilePath = './output/extractedText.json';
+      const jsonOutput = { textElements: textElements };
+      fs.writeFile(outputJsonFilePath, JSON.stringify(jsonOutput, null, 2), (err) => {
+        if (err) {
+          console.error('Error writing text to JSON file:', err);
+        } else {
+          console.log(`Text successfully written to ${outputJsonFilePath}`);
+        }
       });
+    });
   } catch (error) {
     console.error('Error processing PDF:', error);
   }
